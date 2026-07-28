@@ -1,10 +1,10 @@
 <div align="center">
 
-  <!-- DYNAMIC TERMINAL BANNER (Auto Dark/Light Theme Switching) -->
+  <!-- DYNAMIC TERMINAL BANNER (Auto Dark/Light Theme Switching with Cache Buster) -->
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/1ErayYavuz/1ErayYavuz/main/assets/dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/1ErayYavuz/1ErayYavuz/main/assets/light.svg">
-    <img alt="Terminal Banner" src="https://raw.githubusercontent.com/1ErayYavuz/1ErayYavuz/main/assets/dark.svg" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/1ErayYavuz/1ErayYavuz/main/assets/dark.svg?v=3.0">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/1ErayYavuz/1ErayYavuz/main/assets/light.svg?v=3.0">
+    <img alt="Terminal Banner" src="https://raw.githubusercontent.com/1ErayYavuz/1ErayYavuz/main/assets/dark.svg?v=3.0" width="100%">
   </picture>
 
   <br><br>
