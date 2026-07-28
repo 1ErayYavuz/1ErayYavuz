@@ -1,8 +1,55 @@
 import os
 import math
+import base64
+import urllib.request
+from PIL import Image, ImageEnhance, ImageOps
+
+def get_avatar_base64_and_dither_matrix(grid_size=16):
+    avatar_path = "avatar.png"
+    if not os.path.exists(avatar_path):
+        try:
+            urllib.request.urlretrieve("https://github.com/1ErayYavuz.png", avatar_path)
+        except Exception as e:
+            print("Could not download avatar:", e)
+
+    img_b64 = ""
+    dither_pixels = []
+
+    if os.path.exists(avatar_path):
+        with open(avatar_path, "rb") as f:
+            img_b64 = base64.b64encode(f.read()).decode("utf-8")
+        
+        # Load and process image for dithering grid
+        img = Image.open(avatar_path).convert("RGBA")
+        
+        # Make background transparent if white or make square
+        w, h = img.size
+        min_dim = min(w, h)
+        left = (w - min_dim) // 2
+        top = (h - min_dim) // 2
+        img_cropped = img.crop((left, top, left + min_dim, top + min_dim))
+        
+        # Enhance contrast
+        gray = img_cropped.convert("L")
+        enhancer = ImageEnhance.Contrast(gray)
+        gray_enhanced = enhancer.enhance(1.4)
+        
+        # Resize to grid
+        small = gray_enhanced.resize((grid_size, grid_size), Image.Resampling.LANCZOS)
+        
+        for r in range(grid_size):
+            row_pixels = []
+            for c in range(grid_size):
+                val = small.getpixel((c, r))
+                norm = val / 255.0  # 0.0 (dark) to 1.0 (bright)
+                row_pixels.append(norm)
+            dither_pixels.append(row_pixels)
+            
+    return img_b64, dither_pixels
 
 def generate_svg(theme="dark"):
     is_dark = (theme == "dark")
+    img_b64, dither_matrix = get_avatar_base64_and_dither_matrix(grid_size=14)
     
     # Color palette definitions
     bg_color = "#0d1117" if is_dark else "#ffffff"
@@ -17,29 +64,45 @@ def generate_svg(theme="dark"):
     accent_yellow = "#d29922" if is_dark else "#9a6700"
     terminal_header_bg = "#21262d" if is_dark else "#eaeea1"
     
-    # Generate 16x16 dithered grid dots for avatar graphic
+    # Generate 14x14 dithered grid dots for avatar graphic based on 1ErayYavuz avatar pixels
     dots_svg = []
-    grid_size = 14
+    grid_size = len(dither_matrix) if dither_matrix else 14
+    
     for r in range(grid_size):
         for c in range(grid_size):
-            cx = 45 + c * 16
-            cy = 115 + r * 16
-            # Distances to form a stylized "E" or geometric avatar shape
-            dist_center = math.sqrt((r - 6.5)**2 + (c - 6.5)**2)
-            opacity = max(0.15, min(1.0, 1.0 - (dist_center / 8.0)))
+            cx = 48 + c * 15.5
+            cy = 205 + r * 7.5
             
-            # Pattern logic for futuristic tech core shape
-            is_core = (c in [2, 3] and 2 <= r <= 11) or (r in [2, 6, 11] and 2 <= c <= 11)
+            val = dither_matrix[r][c] if dither_matrix else 0.5
             
-            fill = accent_cyan if is_core else (accent_blue if (r + c) % 2 == 0 else accent_purple)
-            anim_delay = (r * 0.1 + c * 0.05)
+            if is_dark:
+                opacity = max(0.1, min(1.0, val * 1.1))
+                radius = max(1.2, min(3.2, val * 3.5))
+                fill = accent_cyan if val > 0.6 else (accent_blue if val > 0.35 else accent_purple)
+            else:
+                opacity = max(0.1, min(1.0, (1.0 - val) * 1.1))
+                radius = max(1.2, min(3.2, (1.0 - val) * 3.5))
+                fill = accent_blue if val < 0.4 else (accent_purple if val < 0.7 else accent_cyan)
             
-            dot_str = f'<circle cx="{cx}" cy="{cy}" r="{3.5 if is_core else 2.5}" fill="{fill}" opacity="{opacity:.2f}">'
-            dot_str += f'<animate attributeName="opacity" values="{opacity:.2f};1.0;{opacity:.2f}" dur="3s" begin="{anim_delay:.2f}s" repeatCount="indefinite"/>'
+            anim_delay = (r * 0.08 + c * 0.04)
+            
+            dot_str = f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{radius:.1f}" fill="{fill}" opacity="{opacity:.2f}">'
+            dot_str += f'<animate attributeName="opacity" values="{opacity:.2f};1.0;{opacity:.2f}" dur="3.5s" begin="{anim_delay:.2f}s" repeatCount="indefinite"/>'
             dot_str += f'</circle>'
             dots_svg.append(dot_str)
             
     dots_xml = "\n      ".join(dots_svg)
+
+    avatar_image_tag = ""
+    if img_b64:
+        avatar_image_tag = f"""
+    <!-- Actual User Avatar Image with Circular Clip Path -->
+    <clipPath id="avatar-clip">
+      <circle cx="155" cy="132" r="50" />
+    </clipPath>
+    <circle cx="155" cy="132" r="53" fill="url(#avatar-border-grad)" />
+    <image href="data:image/png;base64,{img_b64}" x="105" y="82" width="100" height="100" clip-path="url(#avatar-clip)" />
+        """
 
     svg_content = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 360" width="100%" height="100%">
   <defs>
@@ -92,7 +155,7 @@ def generate_svg(theme="dark"):
       <stop offset="100%" stop-color="{accent_purple}" stop-opacity="0" />
     </linearGradient>
 
-    <linearGradient id="avatar-border" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="avatar-border-grad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="{accent_blue}" />
       <stop offset="50%" stop-color="{accent_cyan}" />
       <stop offset="100%" stop-color="{accent_purple}" />
@@ -116,17 +179,19 @@ def generate_svg(theme="dark"):
   <!-- Shimmer Border Line -->
   <rect x="2" y="2" width="876" height="356" rx="12" ry="12" class="shimmer" />
 
-  <!-- LEFT PANEL: Animated Dither Avatar Matrix -->
+  <!-- LEFT PANEL: Profile Avatar & Animated Dither Matrix -->
   <g class="glow-box">
     <rect x="30" y="65" width="250" height="265" rx="10" fill="{card_bg}" stroke="{border_color}" stroke-width="1.5"/>
     <!-- Avatar Frame Header -->
-    <rect x="30" y="65" width="250" height="30" rx="10" fill="{border_color}" opacity="0.4"/>
-    <text x="45" y="85" font-family="'Fira Code', monospace" font-size="11" fill="{text_muted}">[SYSTEM_AVATAR.DITHER]</text>
+    <rect x="30" y="65" width="250" height="26" rx="10" fill="{border_color}" opacity="0.4"/>
+    <text x="45" y="82" font-family="'Fira Code', monospace" font-size="10" fill="{text_muted}">[GITHUB_AVATAR.DITHER]</text>
     
-    <!-- Matrix Dots -->
+    {avatar_image_tag}
+
+    <!-- Dither Matrix Dots below avatar -->
     {dots_xml}
     
-    <text x="155" y="315" text-anchor="middle" class="badge-text">STATUS: ONLINE ⚡</text>
+    <text x="155" y="320" text-anchor="middle" class="badge-text">STATUS: ONLINE ⚡</text>
   </g>
 
   <!-- RIGHT PANEL: Neofetch / Terminal System Info -->
@@ -186,14 +251,14 @@ def main():
         f.write(dark_svg)
     with open("dark.svg", "w", encoding="utf-8") as f:
         f.write(dark_svg)
-    print("Generated dark.svg successfully.")
+    print("Generated dark.svg successfully with user profile avatar.")
 
     light_svg = generate_svg("light")
     with open("assets/light.svg", "w", encoding="utf-8") as f:
         f.write(light_svg)
     with open("light.svg", "w", encoding="utf-8") as f:
         f.write(light_svg)
-    print("Generated light.svg successfully.")
+    print("Generated light.svg successfully with user profile avatar.")
 
 if __name__ == "__main__":
     main()
